@@ -246,7 +246,7 @@ void emulate_instruction(Chip8 &chip8)
             }
             else if(NN == 0xEE)
             {
-                //0X00EE: return from subroutine
+                //0x00EE: return from subroutine
                 printf("0X00EE: Return from subroutine\n");
                 chip8.pc = *--chip8.stack_ptr;
             }
@@ -258,6 +258,40 @@ void emulate_instruction(Chip8 &chip8)
             chip8.pc = NNN;
             break;
 
+        case 0x02:
+            //0x02NNN: call subroutine at NNN
+            printf("0x02NNN: call subroutine at NNN\n");
+            *chip8.stack_ptr++ = chip8.pc;
+            chip8.pc = NNN;
+            break;
+
+        case 0x03:
+            //0x3XNN: if VX == NN, skip next instruction;
+            printf("0x3XNN: if VX == NN, skip next instruction");
+            if(chip8.registers[X] == NN)
+            {
+                chip8.pc += 2;
+            }
+            break;
+
+        case 0x04:
+            //0x4XNN: if VX != NN, skip next instruction
+            printf("0x4XNN: if VX != NN, skip next instruction");
+            if(chip8.registers[X] != NN)
+            {
+                chip8.pc += 2;
+            }
+            break;
+
+        case 0x05:
+            //0x5XY0: if VX == VY, skip next instruction
+            printf("0x5XY0: if VX == VY, skip next instruction");
+            if(chip8.registers[X] == chip8.registers[Y])
+            {
+                chip8.pc += 2;
+            }
+            break;
+
         case 0x06:
             //0x6XNN: set register vx to NN
             printf("0x06 //set register vx to NN\n");
@@ -265,9 +299,94 @@ void emulate_instruction(Chip8 &chip8)
             break;
 
         case 0x07:
-            //0x07XNN:  ser register vx += NN
-            printf("0x07XNN:  ser register vx += NN\n");
+            //0x07XNN:  set register vx += NN
+            printf("0x07XNN:  set register vx += NN\n");
             chip8.registers[X] += NN;
+            break;
+
+        case 0x08:
+            switch(N)
+            {
+                case 0:
+                    //0x8XY0: set VX = VY
+                    printf("0x8XY0: set VX = VY");
+                    chip8.registers[X] = chip8.registers[Y];
+                    break;
+
+                case 1:
+                    //0x0XY1: set register VX |= VY
+                    printf("0x0XY1: set register VX |= VY");
+                    chip8.registers[X] |= chip8.registers[Y];
+                    break;
+
+                case 2:
+                    //0x8XY2: set register VX &= VY
+                    printf("0x8XY2: set register VX &= VY");
+                    chip8.registers[X] &= chip8.registers[Y];
+                    break;
+
+                case 3:
+                    //0x8XY3: set register VX ^= VY
+                    printf("0x8XY3: set register VX ^= VY");
+                    chip8.registers[X] ^= chip8.registers[Y];
+                    break;
+
+                case 4:
+                    //0x8XY4: set register VX += VY and set VF to 1 if overflow, else 0
+                    printf("0x8XY4: set register VX += VY and set VF to 1 if overflow, else 0");
+                    {      
+                        bool carry = ((uint16_t)(chip8.registers[X] + chip8.registers[Y]) > 255);
+                        chip8.registers[X] += chip8.registers[Y];
+                        chip8.registers[0xF] = carry;
+                        break;
+                    }
+
+                case 5:
+                    //0x8XY5: set register VX-=VY, set VF to 0 when there's underflow, else 1
+                    printf("0x8XY5: set register VX-=VY, set VF to 0 when there's underflow, else 1");
+                    {
+                        bool carry = (chip8.registers[X] <= chip8.registers[Y]);
+                        chip8.registers[X] -= chip8.registers[Y];
+                        chip8.registers[0xF] = carry;
+                        break;
+                    }
+
+                case 6:
+                    //0x8XY6: set VX >>= 1, store LSB of VX prior to shift in VF;
+                    printf("0x8XY6: set VX >>= 1, store LSB of VX prior to shift in VF");
+                    {             
+                        bool carry = chip8.registers[Y] & 1;
+                        chip8.registers[X] = chip8.registers[Y] >> 1;
+                        chip8.registers[0xF] = carry;
+                        break;
+                    }
+
+                case 7:
+                    //0x8XY7: set VX = VY - VX, set VF to 0 if underflow, else 1
+                    printf("0x8XY7: set VX = VY - VX, set VF to 0 if underflow, else 1");
+                    {             
+                        bool carry = chip8.registers[X] <= chip8.registers[Y];
+                        chip8.registers[X] = chip8.registers[Y] - chip8.registers[X];
+                        chip8.registers[0xF] = carry;
+                        break;
+                    }
+
+                case 0xE:
+                    //0x8XYE set register VX <<= 1, set VF to 1 if MSB of VX prior to shift was set, else 0
+                    printf("0x8XYE set register VX <<= 1, set VF to 1 if MSB of VX prior to shift was set, else 0");
+                    {
+                        bool carry = ( chip8.registers[Y] & 0x80 ) >> 7;
+                        chip8.registers[X] = chip8.registers[Y] << 1;
+                        chip8.registers[0xF] = carry;
+                        break;
+                    }
+                    
+
+                default:
+                    printf("UNIMPLEMENTED INSTRUCTION FOR 0x08\n");
+                    break;
+
+            }   
             break;
 
         case 0x0A:
@@ -305,6 +424,8 @@ void emulate_instruction(Chip8 &chip8)
             }
             break;
         }
+
+
 
         default:
             printf("UNIMPLEMENTED INSTRUCTION\n");
