@@ -388,11 +388,32 @@ void emulate_instruction(Chip8 &chip8)
 
             }   
             break;
+            
+        case 0x09:
+            //0x9XY0: if VX != VY skip next instruction
+            printf("0x9XY0: if VX != VY, skip next instruction \n");
+            if(chip8.registers[X] != chip8.registers[Y])
+            {
+                chip8.pc += 2;
+            }
+            break;
 
         case 0x0A:
-            //0xANNN: set index register I to NNN;
+            //0xANNN: set index register I to NNN
             printf("0xANNN: set index register I to NNN;\n");
             chip8.index = NNN;
+            break;
+
+        case 0x0B:
+            //0xBNNN: jump to V0 + NNN
+            printf("0xBNNN: jump to address NNN + V0\n")
+            chip8.pc = chip8.registers[0] + NNN;
+            break;
+
+        case 0x0C:
+            //0xCXNN: set VX = random%(256) & NN
+            printf("0xCXNN: set VX = NN & (random in [0,255])\n")
+            chip8.registers[X] = (rand() % 256) & NN;
             break;
 
         case 0x0D:
@@ -425,7 +446,130 @@ void emulate_instruction(Chip8 &chip8)
             break;
         }
 
+        case 0x0E:
+            if(NN == 0x9E)
+            {
+                //0xEX9E if key in VX is pressed, skip next inst
+                printf("0xEX9E: if key in VX is pressed, skip next instruction\n");
+                if(chip8.keypad[chip8.registers[X]])
+                {
+                    chip8.pc += 2;
+                }
+            }
+            else if(NN == 0xA1)
+            {
+                //0xEX9E: if key in VX is not pressed, skip next inst;
+                printf("0xEX9E: if key in VX isn't pressed, skip next instruction\n");
+                if(!chip8.keypad[chip8.registers[X]])
+                {
+                    chip8.pc += 2;
+                }
+            }
+            break;
 
+        case 0x0F:
+            switch(NN)
+            {
+                case 0x0A:
+                {    
+                    static bool any_key_pressed = false;
+                    static uint8_t key = 0xFF;
+                    for(uint8_t i = 0; key == 0xFF && i < sizeof chip8.keypad; ++i)
+                    {
+                        if(chip8.keypad[i])
+                        {
+                            key == i;
+                            any_key_pressed = true;
+                            break;
+                        }
+                    }
+                    if(!any_key_pressed) chip8.pc -= 2;
+                    else
+                    {
+                        //wait until key is released
+                        if(chip8.keypad[key])
+                            chip8.pc -= 2;
+                        else
+                        {
+                            //it has been released
+                            chip8.registers[X] = key;
+                            key = 0xFF; //reset to not found 
+                            any_key_pressed = false;
+                        }
+                    }
+                    break;
+                }
+
+                case 0x1E:
+                    //0xFX1E: set I += VX
+                    //Need to handle Commodore Amiga case
+                    printf("0xFX1E: set I += VX\n");
+                    chip8.index += chip8.registers[X];
+                    break;
+
+                case 0x07:
+                    //0xFX07: VX = delay timer
+                    //Need to implement delay timer
+                    printf("0xFX07: Set VX = delay timer value\n");
+                    chip8.registers[X] = chip8.delay_timer;
+                    break;
+
+                case 0x15:
+                    //0xFX15: delay timer = VX
+                    //Need to implement delay timer
+                    printf("0xFX15: Set delay timer to value of VX\n");
+                    chip8.delay_timer = chip8.registers[X];
+                    break;
+
+                case 0x18:
+                    // 0xFX18: sound timer = VX
+                    //Need to implement sound timer
+                    printf("0xFX18: set sound timer to VX\n"); 
+                    chip8.sound_timer = chip8.registers[X];
+                    break;
+
+                case 0x29:
+                    //0xFX29: Set I to the location of the sprite for the character in VX
+                    printf("0xFX29: Set I to the location of the sprite for the character in VX\n")
+                    chip8.index = chip8.registers[X] * 5;
+                    break;
+
+                case 0x33:
+                    {                 
+                        //0xFX33: store BCD representaiton of VX, unit digit at I+2, tens digit at I+1, hundreds digit at I
+                        printf("0xFX33: store BCD representaiton of VX, unit digit at I+2, tens digit at I+1, hundreds digit at I\n");
+                        uint8_t bcd = chip8.registers[X];
+                        chip8.memory[chip8.index + 2] = bcd % 10;
+                        bcd /= 10;
+                        chip8.memory[chip8.index + 1] = bcd % 10;
+                        bcd /= 10;
+                        chip8.memory[chip8.index] = bcd;
+                        break;
+                    }
+
+                case 0x55:
+                    //0xFX55: dump V0 to VX inclusive starting from I
+                    printf("0xFX55: load V0 to VX into memory starting from I\n");
+                    for(uint8_t i = 0; i <= X; ++i)
+                    {
+                        chip8.memory[chip8.index++] = chip8.registers[i];
+                    }
+                    break;
+
+                case 0x65:
+                    //0xFX65: load V0 to VX inclusive offset from I
+                    printf("0xFX65: write V0 to VX values from memory starting with I and incrementing by 1\n")
+                    for(uint8_t i = 0; i <= X; ++i)
+                    {
+                        chip8.registers[i] = chip8.memory[chip8.index++];
+                    }
+                    break;
+                
+                default:
+                    printf("UNIMPLEMENTED INSTRUCTION FOR 0x0F\n");
+                    break;
+            }
+            break;
 
         default:
             printf("UNIMPLEMENTED INSTRUCTION\n");
