@@ -1,6 +1,13 @@
 #include <cstdint>
+#include <time.h>
 #include "SDL.h"
 
+
+const uint32_t WAVE_FREQ = 440;
+const uint32_t AUDIO_SAMPLE_RATE = 44100;
+
+const unsigned int FPS = 60;
+const unsigned int CLOCK_RATE = 700;
 
 const unsigned int WINDOW_WIDTH = 64;
 const unsigned int WINDOW_HEIGHT = 32;
@@ -19,6 +26,9 @@ const char RUNNING = 'R';
 const char QUIT = 'Q';
 const char PAUSED = 'P';
 
+int16_t VOLUME = 3000;
+
+
 class Chip8
 {
     public:
@@ -35,12 +45,32 @@ class Chip8
         uint16_t opcode;
         Chip8(char* rom_file_name);
         char state;
-
 };
 
+void audio_callback(void* config, uint8_t* stream, int len)
+{
+    static uint32_t running_sample_index = 0;
+    const int32_t wave_period = AUDIO_SAMPLE_RATE/WAVE_FREQ;
+    const int32_t half_wave_period = wave_period/2;
 
+    int16_t *buffer = (int16_t *)stream;
 
-bool initialize_SDL(SDL_Window** window, SDL_Renderer** renderer)
+    for(int i = 0; i < len / 2; ++i)
+    {
+        if((running_sample_index/half_wave_period)%2)
+        {
+            buffer[i] = VOLUME;
+        }
+        else
+        {
+            buffer[i] = -VOLUME;
+        }
+        running_sample_index++;
+    }
+
+}
+
+bool initialize_SDL(SDL_Window** window, SDL_Renderer** renderer, SDL_AudioSpec &want, SDL_AudioSpec &have, SDL_AudioDeviceID &dev)
 {
     const char* window_title = "CHIP8 Emulator";
 
@@ -66,6 +96,22 @@ bool initialize_SDL(SDL_Window** window, SDL_Renderer** renderer)
         return false;
     }
 
+    want.freq = 44100, want.format = AUDIO_S16LSB, want.channels = 1, want.samples = 512, want.callback = audio_callback, want.userdata = nullptr;
+
+    dev = SDL_OpenAudioDevice(nullptr, 0, &want, &have, 0);
+
+    if(!dev)
+    {
+        SDL_Log("Failed to initialize audio devices %s\n", SDL_GetError());
+        return false;
+    }
+
+    if(want.format != have.format || want.channels != have.channels) 
+    {
+        SDL_Log("Failed to load desired audio spec\n");
+        return false;
+    }
+
     return true;
 }
 
@@ -77,13 +123,13 @@ void set_screen(SDL_Renderer** renderer)
 }
 
 
-void cleanup(SDL_Window** window, SDL_Renderer** renderer)
+void cleanup(SDL_Window** window, SDL_Renderer** renderer, SDL_AudioDeviceID &dev)
 {
     SDL_DestroyRenderer(*renderer);
     SDL_DestroyWindow(*window);
+    SDL_CloseAudioDevice(dev);
     SDL_Quit();
 }
-
 
 Chip8::Chip8(char* rom_file_name)
 {
@@ -112,6 +158,7 @@ Chip8::Chip8(char* rom_file_name)
     };
 
     memcpy(&memory[0], font, sizeof(font));
+
 
     //open rom file
     FILE* rom = fopen(rom_file_name, "rb");
@@ -180,6 +227,207 @@ void handle_input(Chip8 &chip8)
                     }
                     break;
 
+                case SDLK_1: 
+                    {
+                        chip8.keypad[0x1] = true;
+                    }
+                    break;
+
+                case SDLK_2:
+                    {
+                        chip8.keypad[0x2] = true;
+                    }
+                    break; 
+
+                case SDLK_3:
+                    {
+                        chip8.keypad[0x3] = true;
+                    }
+                    break;
+
+                case SDLK_4: 
+                    {
+                        chip8.keypad[0xC] = true;
+                    }
+                    break;
+
+                case SDLK_q:
+                    {
+                        chip8.keypad[0x4] = true; 
+                    }
+                    break;
+
+                case SDLK_w: 
+                    {
+                        chip8.keypad[0x5] = true; 
+                    }
+                    break;
+
+                case SDLK_e: 
+                    {
+                        chip8.keypad[0x6] = true;
+                    }
+                    break;
+
+                case SDLK_r:
+                    {
+                        chip8.keypad[0xD] = true;
+                    }
+                    break; 
+
+                case SDLK_a: 
+                    {
+                        chip8.keypad[0x7] = true;
+                    }
+                    break;
+
+                case SDLK_s:
+                    {
+                        chip8.keypad[0x8] = true;
+                    }
+                    break; 
+
+                case SDLK_d:
+                    {
+                        chip8.keypad[0x9] = true; 
+                    }
+                    break; 
+
+                case SDLK_f:
+                    {
+                        chip8.keypad[0xE] = true; 
+                    }
+                    break;
+
+                case SDLK_z: 
+                    {
+                        chip8.keypad[0xA] = true; 
+                    }
+                    break;
+
+                case SDLK_x: 
+                    {
+                        chip8.keypad[0x0] = true;
+                    }
+                    break;
+
+                case SDLK_c:
+                    {
+                        chip8.keypad[0xB] = true;
+                    }
+                    break;
+
+                case SDLK_v:
+                    {
+                        chip8.keypad[0xF] = true; 
+                    }
+                    break; 
+
+                default:
+                    break;
+
+            }
+        }
+        else if(e.type == SDL_KEYUP)
+        {
+            switch(e.key.keysym.sym)
+            {
+                case SDLK_1: 
+                    {
+                        chip8.keypad[0x1] = false; 
+                    }
+                    break;
+
+                case SDLK_2:
+                    {
+                        chip8.keypad[0x2] = false;
+                    }
+                    break; 
+
+                case SDLK_3:
+                    {
+                        chip8.keypad[0x3] = false;
+                    }
+                    break;
+
+                case SDLK_4: 
+                    {
+                        chip8.keypad[0xC] = false;
+                    }
+                    break;
+
+                case SDLK_q:
+                    {
+                        chip8.keypad[0x4] = false; 
+                    }
+                    break;
+
+                case SDLK_w: 
+                    {
+                        chip8.keypad[0x5] = false; 
+                    }
+                    break;
+
+                case SDLK_e: 
+                    {
+                        chip8.keypad[0x6] = false;
+                    }
+                    break;
+
+                case SDLK_r:
+                    {
+                        chip8.keypad[0xD] = false;
+                    }
+                    break; 
+
+                case SDLK_a: 
+                    {
+                        chip8.keypad[0x7] = false;
+                    }
+                    break;
+
+                case SDLK_s:
+                    {
+                        chip8.keypad[0x8] = false;
+                    }
+                    break; 
+
+                case SDLK_d:
+                    {
+                        chip8.keypad[0x9] = false; 
+                    }
+                    break; 
+
+                case SDLK_f:
+                    {
+                        chip8.keypad[0xE] = false; 
+                    }
+                    break;
+
+                case SDLK_z: 
+                    {
+                        chip8.keypad[0xA] = false; 
+                    }
+                    break;
+
+                case SDLK_x: 
+                    {
+                        chip8.keypad[0x0] = false;
+                    }
+                    break;
+
+                case SDLK_c:
+                    {
+                        chip8.keypad[0xB] = false;
+                    }
+                    break;
+
+                case SDLK_v:
+                    {
+                        chip8.keypad[0xF] = false; 
+                    }
+                    break;
+
                 default:
                     break;
             }
@@ -220,12 +468,26 @@ void update_screen(SDL_Renderer** renderer, Chip8 &chip8)
     SDL_RenderPresent(*renderer);
 }
 
+void update_timers(Chip8 &chip8, SDL_AudioDeviceID &dev)
+{
+    if(chip8.delay_timer)
+    {
+        chip8.delay_timer--;
+    }
 
-//emulating instructions
+    if(chip8.sound_timer)
+    {
+        chip8.sound_timer--;
+        SDL_PauseAudioDevice(dev, 0);
+    }
+    else
+    {
+        SDL_PauseAudioDevice(dev, 1);
+    }
+}
+
 void emulate_instruction(Chip8 &chip8)
 {
-
-
     chip8.opcode = ( (chip8.memory)[chip8.pc] << 8 ) | ( (chip8.memory)[chip8.pc + 1] );
     chip8.pc += 2;
 
@@ -388,7 +650,7 @@ void emulate_instruction(Chip8 &chip8)
 
             }   
             break;
-            
+
         case 0x09:
             //0x9XY0: if VX != VY skip next instruction
             printf("0x9XY0: if VX != VY, skip next instruction \n");
@@ -406,13 +668,13 @@ void emulate_instruction(Chip8 &chip8)
 
         case 0x0B:
             //0xBNNN: jump to V0 + NNN
-            printf("0xBNNN: jump to address NNN + V0\n")
+            printf("0xBNNN: jump to address NNN + V0\n");
             chip8.pc = chip8.registers[0] + NNN;
             break;
 
         case 0x0C:
             //0xCXNN: set VX = random%(256) & NN
-            printf("0xCXNN: set VX = NN & (random in [0,255])\n")
+            printf("0xCXNN: set VX = NN & (random in [0,255])\n");
             chip8.registers[X] = (rand() % 256) & NN;
             break;
 
@@ -437,7 +699,7 @@ void emulate_instruction(Chip8 &chip8)
                         chip8.registers[0xF] = 1;
                     }
 
-                    chip8.display[posY * WINDOW_WIDTH + posX] ^= (sprite & (1 << j));
+                    chip8.display[posY * WINDOW_WIDTH + posX] ^= (bool)(sprite & (1 << j));
                     if(++posX >= WINDOW_WIDTH) break;
                 }
 
@@ -445,7 +707,6 @@ void emulate_instruction(Chip8 &chip8)
             }
             break;
         }
-
         case 0x0E:
             if(NN == 0x9E)
             {
@@ -530,7 +791,7 @@ void emulate_instruction(Chip8 &chip8)
 
                 case 0x29:
                     //0xFX29: Set I to the location of the sprite for the character in VX
-                    printf("0xFX29: Set I to the location of the sprite for the character in VX\n")
+                    printf("0xFX29: Set I to the location of the sprite for the character in VX\n");
                     chip8.index = chip8.registers[X] * 5;
                     break;
 
@@ -558,7 +819,7 @@ void emulate_instruction(Chip8 &chip8)
 
                 case 0x65:
                     //0xFX65: load V0 to VX inclusive offset from I
-                    printf("0xFX65: write V0 to VX values from memory starting with I and incrementing by 1\n")
+                    printf("0xFX65: write V0 to VX values from memory starting with I and incrementing by 1\n");
                     for(uint8_t i = 0; i <= X; ++i)
                     {
                         chip8.registers[i] = chip8.memory[chip8.index++];
@@ -570,6 +831,7 @@ void emulate_instruction(Chip8 &chip8)
                     break;
             }
             break;
+
 
         default:
             printf("UNIMPLEMENTED INSTRUCTION\n");
@@ -586,11 +848,16 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    srand(time(NULL));
+
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
    
+    SDL_AudioDeviceID dev = 0;
+    SDL_AudioSpec want, have;
 
-    if(initialize_SDL(&window, &renderer) == false)
+
+    if(initialize_SDL(&window, &renderer, want, have, dev) == false)
     {
         exit(EXIT_FAILURE);
     }
@@ -606,17 +873,31 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+
     while(chip8.state != 'Q')
     {
         handle_input(chip8);
+
         if(chip8.state == PAUSED) continue;
+
+        uint64_t intial_time = SDL_GetPerformanceCounter();
         
-        emulate_instruction(chip8);
+        for(uint32_t i = 0; i < CLOCK_RATE/FPS; ++i)
+        {
+            emulate_instruction(chip8);
+        }
         
+        uint64_t final_time = SDL_GetPerformanceCounter();
+
+        const double delta_time = (double)((1000 * (final_time - intial_time))/SDL_GetPerformanceFrequency());
+
+        SDL_Delay(1000/FPS > delta_time ? 1000/FPS - delta_time : 0);
+
         update_screen(&renderer, chip8);
+        update_timers(chip8, dev);
     }
 
-    cleanup(&window, &renderer);
+    cleanup(&window, &renderer, dev);
 
     return 0;
 }
