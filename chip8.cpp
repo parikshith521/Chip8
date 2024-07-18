@@ -609,6 +609,8 @@ void emulate_instruction(Chip8 &chip8)
 
     case 0x05:
         // 0x5XY0: if VX == VY, skip next instruction
+        if (N != 0)
+            break;
         printf("0x5XY0: if VX == VY, skip next instruction");
         if (chip8.registers[X] == chip8.registers[Y])
         {
