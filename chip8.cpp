@@ -27,7 +27,7 @@ const char PAUSED = 'P';
 
 int16_t VOLUME = 3000;
 
-const float lerp_rate = 0.5;
+float lerp_rate = 0.5;
 
 class Chip8
 {
@@ -222,6 +222,26 @@ void handle_input(Chip8 &chip8)
                 {
                     chip8.state = RUNNING;
                 }
+                break;
+
+            case SDLK_i:
+                if (VOLUME)
+                    VOLUME -= 500;
+                break;
+
+            case SDLK_o:
+                if (VOLUME < INT16_MAX)
+                    VOLUME += 500;
+                break;
+
+            case SDLK_n:
+                if (lerp_rate < 1.0)
+                    lerp_rate += 0.1;
+                break;
+
+            case SDLK_m:
+                if (lerp_rate > 0.1)
+                    lerp_rate -= 0.1;
                 break;
 
             case SDLK_1:
@@ -432,7 +452,7 @@ void handle_input(Chip8 &chip8)
 }
 
 // lerp-helper function
-uint32_t lerp(uint32_t initial, uint32_t final, const float t)
+uint32_t lerp(uint32_t initial, uint32_t final, float t)
 {
     // extract and handle RGBa separately
     uint8_t r_initial = (initial >> 24) & 0xFF;
