@@ -46,6 +46,8 @@ public:
     uint16_t opcode;
     Chip8(char *rom_file_name);
     char state;
+
+    void emulate_instruction();
 };
 
 void audio_callback(void *config, uint8_t *stream, int len)
@@ -548,62 +550,62 @@ void update_timers(Chip8 &chip8, SDL_AudioDeviceID &dev)
     }
 }
 
-void emulate_instruction(Chip8 &chip8)
+void Chip8::emulate_instruction()
 {
-    chip8.opcode = ((chip8.memory)[chip8.pc] << 8) | ((chip8.memory)[chip8.pc + 1]);
-    chip8.pc += 2;
+    opcode = ((memory)[pc] << 8) | ((memory)[pc + 1]);
+    pc += 2;
 
-    uint16_t NNN = chip8.opcode & 0x0FFF;
-    uint8_t NN = chip8.opcode & 0x0FF;
-    uint8_t N = chip8.opcode & 0x0F;
-    uint8_t X = (chip8.opcode >> 8) & 0x0F;
-    uint8_t Y = (chip8.opcode >> 4) & 0x0F;
+    uint16_t NNN = opcode & 0x0FFF;
+    uint8_t NN = opcode & 0x0FF;
+    uint8_t N = opcode & 0x0F;
+    uint8_t X = (opcode >> 8) & 0x0F;
+    uint8_t Y = (opcode >> 4) & 0x0F;
 
-    switch ((chip8.opcode >> 12) & 0x0F)
+    switch ((opcode >> 12) & 0x0F)
     {
     case 0x00:
         if (NN == 0xE0)
         {
             // 0x00E0 clear screen
             printf("0x00E0: Clear screen");
-            memset(&chip8.display[0], false, sizeof chip8.display);
+            memset(&display[0], false, sizeof display);
         }
         else if (NN == 0xEE)
         {
             // 0x00EE: return from subroutine
             printf("0X00EE: Return from subroutine\n");
-            chip8.pc = *--chip8.stack_ptr;
+            pc = *--stack_ptr;
         }
         break;
 
     case 0x01:
         // 1NNN jump to NNN
         printf("1NNN: jump to NNN\n");
-        chip8.pc = NNN;
+        pc = NNN;
         break;
 
     case 0x02:
         // 0x02NNN: call subroutine at NNN
         printf("0x02NNN: call subroutine at NNN\n");
-        *chip8.stack_ptr++ = chip8.pc;
-        chip8.pc = NNN;
+        *stack_ptr++ = pc;
+        pc = NNN;
         break;
 
     case 0x03:
         // 0x3XNN: if VX == NN, skip next instruction;
         printf("0x3XNN: if VX == NN, skip next instruction");
-        if (chip8.registers[X] == NN)
+        if (registers[X] == NN)
         {
-            chip8.pc += 2;
+            pc += 2;
         }
         break;
 
     case 0x04:
         // 0x4XNN: if VX != NN, skip next instruction
         printf("0x4XNN: if VX != NN, skip next instruction");
-        if (chip8.registers[X] != NN)
+        if (registers[X] != NN)
         {
-            chip8.pc += 2;
+            pc += 2;
         }
         break;
 
@@ -612,22 +614,22 @@ void emulate_instruction(Chip8 &chip8)
         if (N != 0)
             break;
         printf("0x5XY0: if VX == VY, skip next instruction");
-        if (chip8.registers[X] == chip8.registers[Y])
+        if (registers[X] == registers[Y])
         {
-            chip8.pc += 2;
+            pc += 2;
         }
         break;
 
     case 0x06:
         // 0x6XNN: set register vx to NN
         printf("0x06 //set register vx to NN\n");
-        chip8.registers[X] = NN;
+        registers[X] = NN;
         break;
 
     case 0x07:
         // 0x07XNN:  set register vx += NN
         printf("0x07XNN:  set register vx += NN\n");
-        chip8.registers[X] += NN;
+        registers[X] += NN;
         break;
 
     case 0x08:
@@ -636,34 +638,34 @@ void emulate_instruction(Chip8 &chip8)
         case 0:
             // 0x8XY0: set VX = VY
             printf("0x8XY0: set VX = VY");
-            chip8.registers[X] = chip8.registers[Y];
+            registers[X] = registers[Y];
             break;
 
         case 1:
             // 0x0XY1: set register VX |= VY
             printf("0x0XY1: set register VX |= VY");
-            chip8.registers[X] |= chip8.registers[Y];
+            registers[X] |= registers[Y];
             break;
 
         case 2:
             // 0x8XY2: set register VX &= VY
             printf("0x8XY2: set register VX &= VY");
-            chip8.registers[X] &= chip8.registers[Y];
+            registers[X] &= registers[Y];
             break;
 
         case 3:
             // 0x8XY3: set register VX ^= VY
             printf("0x8XY3: set register VX ^= VY");
-            chip8.registers[X] ^= chip8.registers[Y];
+            registers[X] ^= registers[Y];
             break;
 
         case 4:
             // 0x8XY4: set register VX += VY and set VF to 1 if overflow, else 0
             printf("0x8XY4: set register VX += VY and set VF to 1 if overflow, else 0");
             {
-                bool carry = ((uint16_t)(chip8.registers[X] + chip8.registers[Y]) > 255);
-                chip8.registers[X] += chip8.registers[Y];
-                chip8.registers[0xF] = carry;
+                bool carry = ((uint16_t)(registers[X] + registers[Y]) > 255);
+                registers[X] += registers[Y];
+                registers[0xF] = carry;
                 break;
             }
 
@@ -671,9 +673,9 @@ void emulate_instruction(Chip8 &chip8)
             // 0x8XY5: set register VX-=VY, set VF to 0 when there's underflow, else 1
             printf("0x8XY5: set register VX-=VY, set VF to 0 when there's underflow, else 1");
             {
-                bool carry = (chip8.registers[X] <= chip8.registers[Y]);
-                chip8.registers[X] -= chip8.registers[Y];
-                chip8.registers[0xF] = carry;
+                bool carry = (registers[X] <= registers[Y]);
+                registers[X] -= registers[Y];
+                registers[0xF] = carry;
                 break;
             }
 
@@ -681,9 +683,9 @@ void emulate_instruction(Chip8 &chip8)
             // 0x8XY6: set VX >>= 1, store LSB of VX prior to shift in VF;
             printf("0x8XY6: set VX >>= 1, store LSB of VX prior to shift in VF");
             {
-                bool carry = chip8.registers[Y] & 1;
-                chip8.registers[X] = chip8.registers[Y] >> 1;
-                chip8.registers[0xF] = carry;
+                bool carry = registers[Y] & 1;
+                registers[X] = registers[Y] >> 1;
+                registers[0xF] = carry;
                 break;
             }
 
@@ -691,9 +693,9 @@ void emulate_instruction(Chip8 &chip8)
             // 0x8XY7: set VX = VY - VX, set VF to 0 if underflow, else 1
             printf("0x8XY7: set VX = VY - VX, set VF to 0 if underflow, else 1");
             {
-                bool carry = chip8.registers[X] <= chip8.registers[Y];
-                chip8.registers[X] = chip8.registers[Y] - chip8.registers[X];
-                chip8.registers[0xF] = carry;
+                bool carry = registers[X] <= registers[Y];
+                registers[X] = registers[Y] - registers[X];
+                registers[0xF] = carry;
                 break;
             }
 
@@ -701,9 +703,9 @@ void emulate_instruction(Chip8 &chip8)
             // 0x8XYE set register VX <<= 1, set VF to 1 if MSB of VX prior to shift was set, else 0
             printf("0x8XYE set register VX <<= 1, set VF to 1 if MSB of VX prior to shift was set, else 0");
             {
-                bool carry = (chip8.registers[Y] & 0x80) >> 7;
-                chip8.registers[X] = chip8.registers[Y] << 1;
-                chip8.registers[0xF] = carry;
+                bool carry = (registers[Y] & 0x80) >> 7;
+                registers[X] = registers[Y] << 1;
+                registers[0xF] = carry;
                 break;
             }
 
@@ -716,52 +718,52 @@ void emulate_instruction(Chip8 &chip8)
     case 0x09:
         // 0x9XY0: if VX != VY skip next instruction
         printf("0x9XY0: if VX != VY, skip next instruction \n");
-        if (chip8.registers[X] != chip8.registers[Y])
+        if (registers[X] != registers[Y])
         {
-            chip8.pc += 2;
+            pc += 2;
         }
         break;
 
     case 0x0A:
         // 0xANNN: set index register I to NNN
         printf("0xANNN: set index register I to NNN;\n");
-        chip8.index = NNN;
+        index = NNN;
         break;
 
     case 0x0B:
         // 0xBNNN: jump to V0 + NNN
         printf("0xBNNN: jump to address NNN + V0\n");
-        chip8.pc = chip8.registers[0] + NNN;
+        pc = registers[0] + NNN;
         break;
 
     case 0x0C:
         // 0xCXNN: set VX = random%(256) & NN
         printf("0xCXNN: set VX = NN & (random in [0,255])\n");
-        chip8.registers[X] = (rand() % 256) & NN;
+        registers[X] = (rand() % 256) & NN;
         break;
 
     case 0x0D:
     {
         // 0xDXYN: draw N height sprite at (X,Y); Read from I;
         printf("0xDXYN: draw N height sprite at (X,Y); Read from I;\n");
-        uint8_t posX = chip8.registers[X] % (WINDOW_WIDTH);
-        uint8_t posY = chip8.registers[Y] % (WINDOW_HEIGHT);
+        uint8_t posX = registers[X] % (WINDOW_WIDTH);
+        uint8_t posY = registers[Y] % (WINDOW_HEIGHT);
 
-        chip8.registers[0xF] = 0;
+        registers[0xF] = 0;
 
         for (uint8_t i = 0; i < N; ++i)
         {
-            uint8_t sprite = chip8.memory[chip8.index + i];
-            posX = chip8.registers[X] % (WINDOW_WIDTH);
+            uint8_t sprite = memory[index + i];
+            posX = registers[X] % (WINDOW_WIDTH);
 
             for (int8_t j = 7; j >= 0; --j)
             {
-                if ((sprite & (1 << j)) && (chip8.display[posY * WINDOW_WIDTH + posX]))
+                if ((sprite & (1 << j)) && (display[posY * WINDOW_WIDTH + posX]))
                 {
-                    chip8.registers[0xF] = 1;
+                    registers[0xF] = 1;
                 }
 
-                chip8.display[posY * WINDOW_WIDTH + posX] ^= (bool)(sprite & (1 << j));
+                display[posY * WINDOW_WIDTH + posX] ^= (bool)(sprite & (1 << j));
                 if (++posX >= WINDOW_WIDTH)
                     break;
             }
@@ -776,18 +778,18 @@ void emulate_instruction(Chip8 &chip8)
         {
             // 0xEX9E if key in VX is pressed, skip next inst
             printf("0xEX9E: if key in VX is pressed, skip next instruction\n");
-            if (chip8.keypad[chip8.registers[X]])
+            if (keypad[registers[X]])
             {
-                chip8.pc += 2;
+                pc += 2;
             }
         }
         else if (NN == 0xA1)
         {
             // 0xEX9E: if key in VX is not pressed, skip next inst;
             printf("0xEX9E: if key in VX isn't pressed, skip next instruction\n");
-            if (!chip8.keypad[chip8.registers[X]])
+            if (!keypad[registers[X]])
             {
-                chip8.pc += 2;
+                pc += 2;
             }
         }
         break;
@@ -799,9 +801,9 @@ void emulate_instruction(Chip8 &chip8)
         {
             static bool any_key_pressed = false;
             static uint8_t key = 0xFF;
-            for (uint8_t i = 0; key == 0xFF && i < sizeof chip8.keypad; ++i)
+            for (uint8_t i = 0; key == 0xFF && i < sizeof keypad; ++i)
             {
-                if (chip8.keypad[i])
+                if (keypad[i])
                 {
                     key == i;
                     any_key_pressed = true;
@@ -809,16 +811,16 @@ void emulate_instruction(Chip8 &chip8)
                 }
             }
             if (!any_key_pressed)
-                chip8.pc -= 2;
+                pc -= 2;
             else
             {
                 // wait until key is released
-                if (chip8.keypad[key])
-                    chip8.pc -= 2;
+                if (keypad[key])
+                    pc -= 2;
                 else
                 {
                     // it has been released
-                    chip8.registers[X] = key;
+                    registers[X] = key;
                     key = 0xFF; // reset to not found
                     any_key_pressed = false;
                 }
@@ -830,46 +832,46 @@ void emulate_instruction(Chip8 &chip8)
             // 0xFX1E: set I += VX
             // Need to handle Commodore Amiga case
             printf("0xFX1E: set I += VX\n");
-            chip8.index += chip8.registers[X];
+            index += registers[X];
             break;
 
         case 0x07:
             // 0xFX07: VX = delay timer
             // Need to implement delay timer
             printf("0xFX07: Set VX = delay timer value\n");
-            chip8.registers[X] = chip8.delay_timer;
+            registers[X] = delay_timer;
             break;
 
         case 0x15:
             // 0xFX15: delay timer = VX
             // Need to implement delay timer
             printf("0xFX15: Set delay timer to value of VX\n");
-            chip8.delay_timer = chip8.registers[X];
+            delay_timer = registers[X];
             break;
 
         case 0x18:
             // 0xFX18: sound timer = VX
             // Need to implement sound timer
             printf("0xFX18: set sound timer to VX\n");
-            chip8.sound_timer = chip8.registers[X];
+            sound_timer = registers[X];
             break;
 
         case 0x29:
             // 0xFX29: Set I to the location of the sprite for the character in VX
             printf("0xFX29: Set I to the location of the sprite for the character in VX\n");
-            chip8.index = chip8.registers[X] * 5;
+            index = registers[X] * 5;
             break;
 
         case 0x33:
         {
             // 0xFX33: store BCD representaiton of VX, unit digit at I+2, tens digit at I+1, hundreds digit at I
             printf("0xFX33: store BCD representaiton of VX, unit digit at I+2, tens digit at I+1, hundreds digit at I\n");
-            uint8_t bcd = chip8.registers[X];
-            chip8.memory[chip8.index + 2] = bcd % 10;
+            uint8_t bcd = registers[X];
+            memory[index + 2] = bcd % 10;
             bcd /= 10;
-            chip8.memory[chip8.index + 1] = bcd % 10;
+            memory[index + 1] = bcd % 10;
             bcd /= 10;
-            chip8.memory[chip8.index] = bcd;
+            memory[index] = bcd;
             break;
         }
 
@@ -878,7 +880,7 @@ void emulate_instruction(Chip8 &chip8)
             printf("0xFX55: load V0 to VX into memory starting from I\n");
             for (uint8_t i = 0; i <= X; ++i)
             {
-                chip8.memory[chip8.index++] = chip8.registers[i];
+                memory[index++] = registers[i];
             }
             break;
 
@@ -887,7 +889,7 @@ void emulate_instruction(Chip8 &chip8)
             printf("0xFX65: write V0 to VX values from memory starting with I and incrementing by 1\n");
             for (uint8_t i = 0; i <= X; ++i)
             {
-                chip8.registers[i] = chip8.memory[chip8.index++];
+                registers[i] = memory[index++];
             }
             break;
 
@@ -947,7 +949,7 @@ int main(int argc, char **argv)
 
         for (uint32_t i = 0; i < CLOCK_RATE / FPS; ++i)
         {
-            emulate_instruction(chip8);
+            chip8.emulate_instruction();
         }
 
         uint64_t final_time = SDL_GetPerformanceCounter();
