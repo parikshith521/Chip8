@@ -31,7 +31,7 @@ float lerp_rate = 0.5;
 
 class Chip8
 {
-public:
+private:
     uint8_t memory[MEMORY_SIZE]{};
     uint8_t registers[REGISTER_COUNT]{};
     uint16_t stack[STACK_SIZE]{};
@@ -44,10 +44,15 @@ public:
     uint8_t delay_timer{};
     uint8_t sound_timer{};
     uint16_t opcode;
-    Chip8(char *rom_file_name);
+
+public:
     char state;
 
+    Chip8(char *rom_file_name);
     void emulate_instruction();
+    void handle_input();
+    void update_timers(SDL_AudioDeviceID &dev);
+    void update_screen(SDL_Renderer **renderer);
 };
 
 void audio_callback(void *config, uint8_t *stream, int len)
@@ -197,33 +202,27 @@ Chip8::Chip8(char *rom_file_name)
     memset(&pixel_color[0], 0, sizeof pixel_color);
 }
 
-void handle_input(Chip8 &chip8)
+void Chip8::handle_input()
 {
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
         if (e.type == SDL_QUIT)
-        {
-            chip8.state = 'Q';
-        }
+            state = 'Q';
         else if (e.type == SDL_KEYDOWN)
         {
             switch (e.key.keysym.sym)
             {
 
             case SDLK_ESCAPE:
-                chip8.state = 'Q';
+                state = 'Q';
                 break;
 
             case SDLK_SPACE:
-                if (chip8.state == RUNNING)
-                {
-                    chip8.state = PAUSED;
-                }
+                if (state == RUNNING)
+                    state = PAUSED;
                 else
-                {
-                    chip8.state = RUNNING;
-                }
+                    state = RUNNING;
                 break;
 
             case SDLK_i:
@@ -247,100 +246,68 @@ void handle_input(Chip8 &chip8)
                 break;
 
             case SDLK_1:
-            {
-                chip8.keypad[0x1] = true;
-            }
-            break;
+                keypad[0x1] = true;
+                break;
 
             case SDLK_2:
-            {
-                chip8.keypad[0x2] = true;
-            }
-            break;
+                keypad[0x2] = true;
+                break;
 
             case SDLK_3:
-            {
-                chip8.keypad[0x3] = true;
-            }
-            break;
+                keypad[0x3] = true;
+                break;
 
             case SDLK_4:
-            {
-                chip8.keypad[0xC] = true;
-            }
-            break;
+                keypad[0xC] = true;
+                break;
 
             case SDLK_q:
-            {
-                chip8.keypad[0x4] = true;
-            }
-            break;
+                keypad[0x4] = true;
+                break;
 
             case SDLK_w:
-            {
-                chip8.keypad[0x5] = true;
-            }
-            break;
+                keypad[0x5] = true;
+                break;
 
             case SDLK_e:
-            {
-                chip8.keypad[0x6] = true;
-            }
-            break;
+                keypad[0x6] = true;
+                break;
 
             case SDLK_r:
-            {
-                chip8.keypad[0xD] = true;
-            }
-            break;
+                keypad[0xD] = true;
+                break;
 
             case SDLK_a:
-            {
-                chip8.keypad[0x7] = true;
-            }
-            break;
+                keypad[0x7] = true;
+                break;
 
             case SDLK_s:
-            {
-                chip8.keypad[0x8] = true;
-            }
-            break;
+                keypad[0x8] = true;
+                break;
 
             case SDLK_d:
-            {
-                chip8.keypad[0x9] = true;
-            }
-            break;
+                keypad[0x9] = true;
+                break;
 
             case SDLK_f:
-            {
-                chip8.keypad[0xE] = true;
-            }
-            break;
+                keypad[0xE] = true;
+                break;
 
             case SDLK_z:
-            {
-                chip8.keypad[0xA] = true;
-            }
-            break;
+                keypad[0xA] = true;
+                break;
 
             case SDLK_x:
-            {
-                chip8.keypad[0x0] = true;
-            }
-            break;
+                keypad[0x0] = true;
+                break;
 
             case SDLK_c:
-            {
-                chip8.keypad[0xB] = true;
-            }
-            break;
+                keypad[0xB] = true;
+                break;
 
             case SDLK_v:
-            {
-                chip8.keypad[0xF] = true;
-            }
-            break;
+                keypad[0xF] = true;
+                break;
 
             default:
                 break;
@@ -351,100 +318,68 @@ void handle_input(Chip8 &chip8)
             switch (e.key.keysym.sym)
             {
             case SDLK_1:
-            {
-                chip8.keypad[0x1] = false;
-            }
-            break;
+                keypad[0x1] = false;
+                break;
 
             case SDLK_2:
-            {
-                chip8.keypad[0x2] = false;
-            }
-            break;
+                keypad[0x2] = false;
+                break;
 
             case SDLK_3:
-            {
-                chip8.keypad[0x3] = false;
-            }
-            break;
+                keypad[0x3] = false;
+                break;
 
             case SDLK_4:
-            {
-                chip8.keypad[0xC] = false;
-            }
-            break;
+                keypad[0xC] = false;
+                break;
 
             case SDLK_q:
-            {
-                chip8.keypad[0x4] = false;
-            }
-            break;
+                keypad[0x4] = false;
+                break;
 
             case SDLK_w:
-            {
-                chip8.keypad[0x5] = false;
-            }
-            break;
+                keypad[0x5] = false;
+                break;
 
             case SDLK_e:
-            {
-                chip8.keypad[0x6] = false;
-            }
-            break;
+                keypad[0x6] = false;
+                break;
 
             case SDLK_r:
-            {
-                chip8.keypad[0xD] = false;
-            }
-            break;
+                keypad[0xD] = false;
+                break;
 
             case SDLK_a:
-            {
-                chip8.keypad[0x7] = false;
-            }
-            break;
+                keypad[0x7] = false;
+                break;
 
             case SDLK_s:
-            {
-                chip8.keypad[0x8] = false;
-            }
-            break;
+                keypad[0x8] = false;
+                break;
 
             case SDLK_d:
-            {
-                chip8.keypad[0x9] = false;
-            }
-            break;
+                keypad[0x9] = false;
+                break;
 
             case SDLK_f:
-            {
-                chip8.keypad[0xE] = false;
-            }
-            break;
+                keypad[0xE] = false;
+                break;
 
             case SDLK_z:
-            {
-                chip8.keypad[0xA] = false;
-            }
-            break;
+                keypad[0xA] = false;
+                break;
 
             case SDLK_x:
-            {
-                chip8.keypad[0x0] = false;
-            }
-            break;
+                keypad[0x0] = false;
+                break;
 
             case SDLK_c:
-            {
-                chip8.keypad[0xB] = false;
-            }
-            break;
+                keypad[0xB] = false;
+                break;
 
             case SDLK_v:
-            {
-                chip8.keypad[0xF] = false;
-            }
-            break;
+                keypad[0xF] = false;
+                break;
 
             default:
                 break;
@@ -477,30 +412,28 @@ uint32_t lerp(uint32_t initial, uint32_t final, float t)
     return res;
 }
 
-void update_screen(SDL_Renderer **renderer, Chip8 &chip8)
+void Chip8::update_screen(SDL_Renderer **renderer)
 {
     SDL_Rect rect;
     rect.x = 0, rect.y = 0, rect.w = SCALE_FACTOR, rect.h = SCALE_FACTOR;
 
-    for (uint32_t i = 0; i < sizeof chip8.display; ++i)
+    for (uint32_t i = 0; i < sizeof display; ++i)
     {
         rect.x = (i % (WINDOW_WIDTH)) * SCALE_FACTOR;
         rect.y = (i / (WINDOW_WIDTH)) * SCALE_FACTOR;
 
-        if (chip8.display[i])
+        if (display[i])
         {
             // pixel is on, lerp towards white (which should be drawn)
             uint32_t white = 0xFFFFFFFF;
 
-            if (chip8.pixel_color[i] != white)
-            {
-                chip8.pixel_color[i] = lerp(chip8.pixel_color[i], white, lerp_rate);
-            }
+            if (pixel_color[i] != white)
+                pixel_color[i] = lerp(pixel_color[i], white, lerp_rate);
 
-            uint8_t r = (chip8.pixel_color[i] >> 24) & 0xFF;
-            uint8_t g = (chip8.pixel_color[i] >> 16) & 0xFF;
-            uint8_t b = (chip8.pixel_color[i] >> 8) & 0xFF;
-            uint8_t a = (chip8.pixel_color[i] >> 0) & 0xFF;
+            uint8_t r = (pixel_color[i] >> 24) & 0xFF;
+            uint8_t g = (pixel_color[i] >> 16) & 0xFF;
+            uint8_t b = (pixel_color[i] >> 8) & 0xFF;
+            uint8_t a = (pixel_color[i] >> 0) & 0xFF;
 
             SDL_SetRenderDrawColor(*renderer, r, g, b, a);
             SDL_RenderFillRect(*renderer, &rect);
@@ -514,15 +447,13 @@ void update_screen(SDL_Renderer **renderer, Chip8 &chip8)
             // pixel is off, lerp towards black (which should be drawn)
             uint32_t black = 0x000000FF;
 
-            if (chip8.pixel_color[i] != black)
-            {
-                chip8.pixel_color[i] = lerp(chip8.pixel_color[i], black, lerp_rate);
-            }
+            if (pixel_color[i] != black)
+                pixel_color[i] = lerp(pixel_color[i], black, lerp_rate);
 
-            uint8_t r = (chip8.pixel_color[i] >> 24) & 0xFF;
-            uint8_t g = (chip8.pixel_color[i] >> 16) & 0xFF;
-            uint8_t b = (chip8.pixel_color[i] >> 8) & 0xFF;
-            uint8_t a = (chip8.pixel_color[i] >> 0) & 0xFF;
+            uint8_t r = (pixel_color[i] >> 24) & 0xFF;
+            uint8_t g = (pixel_color[i] >> 16) & 0xFF;
+            uint8_t b = (pixel_color[i] >> 8) & 0xFF;
+            uint8_t a = (pixel_color[i] >> 0) & 0xFF;
 
             SDL_SetRenderDrawColor(*renderer, r, g, b, a);
             SDL_RenderFillRect(*renderer, &rect);
@@ -532,22 +463,18 @@ void update_screen(SDL_Renderer **renderer, Chip8 &chip8)
     SDL_RenderPresent(*renderer);
 }
 
-void update_timers(Chip8 &chip8, SDL_AudioDeviceID &dev)
+void Chip8::update_timers(SDL_AudioDeviceID &dev)
 {
-    if (chip8.delay_timer)
-    {
-        chip8.delay_timer--;
-    }
+    if (delay_timer)
+        delay_timer--;
 
-    if (chip8.sound_timer)
+    if (sound_timer)
     {
-        chip8.sound_timer--;
+        sound_timer--;
         SDL_PauseAudioDevice(dev, 0);
     }
     else
-    {
         SDL_PauseAudioDevice(dev, 1);
-    }
 }
 
 void Chip8::emulate_instruction()
@@ -940,7 +867,7 @@ int main(int argc, char **argv)
 
     while (chip8.state != 'Q')
     {
-        handle_input(chip8);
+        chip8.handle_input();
 
         if (chip8.state == PAUSED)
             continue;
@@ -948,9 +875,7 @@ int main(int argc, char **argv)
         uint64_t intial_time = SDL_GetPerformanceCounter();
 
         for (uint32_t i = 0; i < CLOCK_RATE / FPS; ++i)
-        {
             chip8.emulate_instruction();
-        }
 
         uint64_t final_time = SDL_GetPerformanceCounter();
 
@@ -958,8 +883,8 @@ int main(int argc, char **argv)
 
         SDL_Delay(1000 / FPS > delta_time ? 1000 / FPS - delta_time : 0);
 
-        update_screen(&renderer, chip8);
-        update_timers(chip8, dev);
+        chip8.update_screen(&renderer);
+        chip8.update_timers(dev);
     }
 
     cleanup(&window, &renderer, dev);
